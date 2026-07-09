@@ -1,0 +1,6 @@
+{
+  "argv": ["__BINARY_PATH__", "{connection_file}"],
+  "display_name": "Free Pascal",
+  "language": "pascal",
+  "interrupt_mode": "signal"
+}
