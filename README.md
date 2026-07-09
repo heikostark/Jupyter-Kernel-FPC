@@ -89,6 +89,10 @@ Auswahl, oder testweise direkt in der Konsole:
 jupyter console --kernel pascal
 ```
 
+```bash
+jupyter lab
+```
+
 ## Manuelle Kompilierung (ohne install.sh)
 
 ```bash
@@ -156,42 +160,3 @@ einem selbst deklarierten Variablennamen drücken, um Vorschläge zu erhalten.
    JSON), verarbeitet und die Antwort im selben Format zurückgesendet.
 6. Jede Anfrage wird auf iopub mit einem `status: busy` / `status: idle`
    Paar eingerahmt (siehe Hinweis zu JupyterLab unten).
-
-## Hinweis: `jupyter console` funktioniert, JupyterLab nicht?
-
-Dieses Problem ist behoben, aber falls es doch wieder auftritt, hier der
-Hintergrund: `jupyter console` (und andere einfache `jupyter_client`-Nutzer)
-begnügen sich beim Verbindungsaufbau mit einer reinen Shell-Antwort auf
-`kernel_info_request`. **JupyterLab hingegen** (über `jupyter_server`) führt
-beim Öffnen des Websocket-Kanals einen sogenannten *"Nudge"* durch: es sendet
-wiederholt `kernel_info_request` und wartet, bis es **sowohl** eine
-Shell-Antwort **als auch mindestens eine `iopub`-Nachricht** erhalten hat —
-das ist eine Absicherung gegen das ZeroMQ-PUB/SUB-"Slow-Joiner"-Problem
-(frisch verbundene SUB-Sockets können die ersten Nachrichten verpassen).
-
-Sendet ein Kernel nur bei `execute_request` `status`-Nachrichten (wie es
-dieser Kernel anfangs tat), bleibt dieser Nudge bei reinen
-`kernel_info_request`-Zyklen für immer aus, und `jupyter_server` wirft eine
-Exception beim Öffnen des Kanals (`Uncaught exception GET
-/api/kernels/.../channels...`), während `jupyter console` völlig
-unbeeindruckt weiterläuft. Die Behebung: **jede** Anfrage auf `shell`/
-`control` wird jetzt (spec-konform) mit `busy`/`idle` auf `iopub`
-eingerahmt, nicht nur `execute_request`. Zusätzlich sendet der Kernel direkt
-nach dem Start eine `status: starting`-Nachricht.
-
-## Getestet
-
-Das Protokoll wurde gegen einen echten ZeroMQ-Client (Python/`pyzmq`) mit
-`DEALER`/`SUB`-Sockets end-to-end getestet: `kernel_info_request`,
-erfolgreiche Codeausführung inkl. `stdout`-Streaming, Kompilierfehler mit
-korrekter `error`/`execute_reply`-Nachricht, ein sauberer `shutdown_request`,
-`complete_request` (sowohl für Schlüsselwörter/RTL-Bezeichner als auch für
-selbst deklarierte Variablennamen), `display_data`-Nachrichten für SVG- und
-PNG-Dateien (inklusive Byte-für-Byte-Vergleich der Base64-dekodierten PNG-
-Daten mit dem Original) sowie das Interrupt-Verhalten (Endlosschleife
-gestartet, `SIGINT` an den Kernelprozess gesendet, verifiziert dass die
-Zelle abgebrochen wird, der Kernelprozess aber weiterläuft und die nächste
-Zelle korrekt verarbeitet) wurden verifiziert. Zusätzlich wurde der
-komplette JupyterLab-Verbindungsablauf gegen einen echten `jupyter_server`
-(REST-API-Kernelstart + Websocket-Kanal + `execute_request`) getestet und
-läuft ohne die zuvor auftretende Exception durch.
